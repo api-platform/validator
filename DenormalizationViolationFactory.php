@@ -229,6 +229,13 @@ final class DenormalizationViolationFactory implements DenormalizationViolationF
         $normalized = [];
         foreach ($expectedTypes ?? [] as $expectedType) {
             if (\is_string($expectedType) && (class_exists($expectedType) || interface_exists($expectedType))) {
+                // A backed enum is sent over the wire as its backing scalar (e.g. "string"), not as the
+                // PHP enum class, so report the JSON-visible type rather than the internal FQCN (#8388).
+                if (is_subclass_of($expectedType, \BackedEnum::class) && ($backingType = (new \ReflectionEnum($expectedType))->getBackingType())) {
+                    $normalized[] = (string) $backingType;
+                    continue;
+                }
+
                 $pos = strrpos($expectedType, '\\');
                 $normalized[] = false === $pos ? $expectedType : substr($expectedType, $pos + 1);
                 continue;
@@ -236,6 +243,6 @@ final class DenormalizationViolationFactory implements DenormalizationViolationF
             $normalized[] = $expectedType;
         }
 
-        return $normalized;
+        return array_values(array_unique($normalized));
     }
 }
